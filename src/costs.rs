@@ -1,3 +1,6 @@
+// Copyright (c) Zefchain Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 /// Rules that aim to be compatible with Wasmtime's defaults.
 pub struct Wasmtime;
 
@@ -16,9 +19,13 @@ fn test_wasmtime_equivalence() -> anyhow::Result<()> {
     let engine = wasmtime::Engine::new(&*wasmtime::Config::new().consume_fuel(true))?;
     let mut store = wasmtime::Store::new(&engine, 0i64);
     let mut linker = wasmtime::Linker::new(&engine);
-    linker.func_wrap("host", "spend", |mut caller: wasmtime::Caller<'_, i64>, cost: i64| {
-        *caller.data_mut() += cost;
-    })?;
+    linker.func_wrap(
+        "host",
+        "spend",
+        |mut caller: wasmtime::Caller<'_, i64>, cost: i64| {
+            *caller.data_mut() += cost;
+        },
+    )?;
 
     let module = std::fs::read("fixtures/loop.wasm")?;
 
@@ -27,7 +34,10 @@ fn test_wasmtime_equivalence() -> anyhow::Result<()> {
     let wasmtime_cost = {
         store.set_fuel(10_000)?;
         linker
-            .instantiate(&mut store, &wasmtime::Module::from_binary(&engine, &module)?)?
+            .instantiate(
+                &mut store,
+                &wasmtime::Module::from_binary(&engine, &module)?,
+            )?
             .get_typed_func::<u32, ()>(&mut store, "run")?
             .call(&mut store, count)?;
         10_000 - store.get_fuel()?

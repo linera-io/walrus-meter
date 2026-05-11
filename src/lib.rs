@@ -1,3 +1,6 @@
+// Copyright (c) Zefchain Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod costs;
 
 /// A trait that encodes the costs of different Wasm operations.
@@ -20,7 +23,10 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
             // we would need a reference to the containing `LocalFunction`,
             // which we can't get as we're currently traversing it mutably.
             use walrus::ir::Instr::*;
-            matches!(instr, Br(_) | BrIf(_) | BrTable(_) | Return(_) | Block(_) | Loop(_) | IfElse(_))
+            matches!(
+                instr,
+                Br(_) | BrIf(_) | BrTable(_) | Return(_) | Block(_) | Loop(_) | IfElse(_)
+            )
         }
 
         let mut insert_positions: Vec<(usize, i64)> = Vec::new();
@@ -53,7 +59,10 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
             instr_seq.instrs.insert(
                 pos,
                 (
-                    walrus::ir::Const { value: walrus::ir::Value::I64(cost) }.into(),
+                    walrus::ir::Const {
+                        value: walrus::ir::Value::I64(cost),
+                    }
+                    .into(),
                     walrus::InstrLocId::default(),
                 ),
             );
@@ -74,7 +83,10 @@ pub fn instrument(
 
     for (_id, func) in module.funcs.iter_local_mut() {
         walrus::ir::dfs_pre_order_mut(
-            &mut Instrument { costs: &costs, spend },
+            &mut Instrument {
+                costs: &costs,
+                spend,
+            },
             func,
             func.entry_block(),
         );
