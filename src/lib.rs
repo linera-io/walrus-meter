@@ -1,25 +1,17 @@
-trait Rules {
-    fn instruction_cost(&self, instruction: &walrus::ir::Instr) -> i32;
+pub mod costs;
+
+/// A trait that encodes the costs of different Wasm operations.
+#[auto_impl::auto_impl(&)]
+pub trait Costs {
+    fn instruction(&self, instruction: &walrus::ir::Instr) -> i32;
 }
 
-struct WasmtimeRules;
-
-impl Rules for WasmtimeRules {
-    fn instruction_cost(&self, instruction: &walrus::ir::Instr) -> i32 {
-        use walrus::ir::Instr::*;
-        match instruction {
-            Drop(_) | Block(_) | Loop(_) | Unreachable(_) => 0,
-            _ => 1,
-        }
-    }
-}
-
-struct Instrument<R> {
-    rules: R,
+struct Instrument<C> {
+    costs: C,
     spend: walrus::FunctionId,
 }
 
-impl<R: Rules> walrus::ir::VisitorMut for Instrument<R> {
+impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
     fn start_instr_seq_mut(&mut self, instr_seq: &mut walrus::ir::InstrSeq) {
         fn is_control_flow(instr: &walrus::ir::Instr) -> bool {
             // We consider blocks to be control-flow structures as they may
@@ -36,7 +28,7 @@ impl<R: Rules> walrus::ir::VisitorMut for Instrument<R> {
         let mut basic_block_start: usize = 0;
 
         for (idx, (instr, _)) in instr_seq.instrs.iter().enumerate() {
-            current_cost += self.rules.instruction_cost(instr) as i64;
+            current_cost += self.costs.instruction(instr) as i64;
 
             if is_control_flow(instr) {
                 insert_positions.push((basic_block_start, current_cost));
@@ -69,64 +61,22 @@ impl<R: Rules> walrus::ir::VisitorMut for Instrument<R> {
     }
 }
 
-fn instrument(module: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub fn instrument(
+    module: &[u8],
+    costs: impl Costs,
+    (spend_module, spend_name): (&str, &str),
+) -> anyhow::Result<Vec<u8>> {
     let mut module = walrus::Module::from_buffer(module)?;
     let spend_ty = module.types.add(&[walrus::ValType::I64], &[]);
-    let (spend, _) = module.add_import_func("host", "spend", spend_ty);
+    let (spend, _) = module.add_import_func(spend_module, spend_name, spend_ty);
 
     for (_id, func) in module.funcs.iter_local_mut() {
         walrus::ir::dfs_pre_order_mut(
-            &mut Instrument {
-                rules: WasmtimeRules,
-                spend,
-            },
+            &mut Instrument { costs: &costs, spend },
             func,
             func.entry_block(),
         );
     }
 
     Ok(module.emit_wasm())
-}
-
-fn main() -> anyhow::Result<()> {
-    let engine = wasmtime::Engine::new(&*wasmtime::Config::new().consume_fuel(true))?;
-    let mut store = wasmtime::Store::new(&engine, 0i64);
-    let mut linker = wasmtime::Linker::new(&engine);
-    linker.func_wrap("host", "spend", |mut caller: wasmtime::Caller<'_, i64>, cost: i64| {
-        *caller.data_mut() += cost;
-    })?;
-
-    let module = std::fs::read("target/wasm32-unknown-unknown/debug/examples/loop.wasm")?;
-
-    let count = 5;
-
-    let wasmtime_cost = {
-        store.set_fuel(10_000)?;
-        linker
-            .instantiate(&mut store, &wasmtime::Module::from_binary(&engine, &module)?)?
-            .get_typed_func::<u32, ()>(&mut store, "run")?
-            .call(&mut store, count)?;
-        10_000 - store.get_fuel()?
-    };
-
-    let walrus_instrument_cost = {
-        *store.data_mut() = 0;
-        linker
-            .instantiate(
-                &mut store,
-                &wasmtime::Module::from_binary(&engine, &instrument(&module)?)?,
-            )?
-            .get_typed_func::<u32, ()>(&mut store, "run")?
-            .call(&mut store, count)?;
-        *store.data()
-    };
-
-    println!(
-        "wasmtime cost: {wasmtime_cost}\n\
-         walrus-instrument cost: {walrus_instrument_cost}"
-    );
-
-    assert_eq!(walrus_instrument_cost as u64, wasmtime_cost);
-
-    Ok(())
 }
