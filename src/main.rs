@@ -1,5 +1,3 @@
-use wasm_instrument::parity_wasm;
-
 trait Rules {
     fn instruction_cost(&self, instruction: &walrus::ir::Instr) -> i32;
 }
@@ -13,25 +11,6 @@ impl Rules for WasmtimeRules {
             Drop(_) | Block(_) | Loop(_) | Unreachable(_) => 0,
             _ => 1,
         }
-    }
-}
-
-impl wasm_instrument::gas_metering::Rules for WasmtimeRules {
-    fn instruction_cost(&self, instruction: &parity_wasm::elements::Instruction) -> Option<u32> {
-        use parity_wasm::elements::Instruction::*;
-
-        Some(match instruction {
-            Nop | Drop | Block(_) | Loop(_) | Unreachable | Else | End => 0,
-            _ => 1,
-        })
-    }
-
-    fn memory_grow_cost(&self) -> wasm_instrument::gas_metering::MemoryGrowCost {
-        wasm_instrument::gas_metering::MemoryGrowCost::Free
-    }
-
-    fn call_per_local_cost(&self) -> u32 {
-        0
     }
 }
 
@@ -109,17 +88,6 @@ fn instrument(module: &[u8]) -> anyhow::Result<Vec<u8>> {
     Ok(module.emit_wasm())
 }
 
-fn parity_instrument(module: &[u8]) -> anyhow::Result<Vec<u8>> {
-    Ok(wasm_instrument::gas_metering::inject(
-        parity_wasm::deserialize_buffer(module)?,
-        wasm_instrument::gas_metering::host_function::Injector::new(
-            "host",
-            "spend",
-        ),
-        &WasmtimeRules,
-    ).map_err(|_| anyhow::anyhow!("injection failed"))?.into_bytes()?)
-}
-
 fn main() -> anyhow::Result<()> {
     let engine = wasmtime::Engine::new(&*wasmtime::Config::new().consume_fuel(true))?;
     let mut store = wasmtime::Store::new(&engine, 0i64);
@@ -153,25 +121,12 @@ fn main() -> anyhow::Result<()> {
         *store.data()
     };
 
-    let parity_instrument_cost = {
-        *store.data_mut() = 0;
-        linker
-            .instantiate(
-                &mut store,
-                &wasmtime::Module::from_binary(&engine, &parity_instrument(&module)?)?,
-            )?
-            .get_typed_func::<u32, ()>(&mut store, "run")?
-            .call(&mut store, count)?;
-        *store.data()
-    };
-
     println!(
         "wasmtime cost: {wasmtime_cost}\n\
-         walrus-instrument cost: {walrus_instrument_cost}\n\
-         wasm-instrument cost: {parity_instrument_cost}",
+         walrus-instrument cost: {walrus_instrument_cost}"
     );
 
-    assert_eq!(walrus_instrument_cost, parity_instrument_cost);
+    assert_eq!(walrus_instrument_cost as u64, wasmtime_cost);
 
     Ok(())
 }
