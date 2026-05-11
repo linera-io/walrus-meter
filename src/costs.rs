@@ -1,7 +1,15 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Rules that aim to be compatible with Wasmtime's defaults.
+/// Costs that never consume fuel.
+pub struct Free;
+impl super::Costs for Free {
+    fn instruction(&self, _instruction: &walrus::ir::Instr) -> i32 {
+        0
+    }
+}
+
+/// Costs that aim to be compatible with Wasmtime's defaults.
 pub struct Wasmtime;
 
 impl super::Costs for Wasmtime {

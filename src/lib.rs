@@ -1,10 +1,20 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+/*!
+# `walrus-meter`
+
+This crate provides instrumentation-based metering for Wasm modules using the
+`walrus` library.
+
+Provide the name of a function to call, and the function will be called
+immediately before executing a sequence of instructions with that sequence's
+cost.
+*/
+
 pub mod costs;
 
 /// A trait that encodes the costs of different Wasm operations.
-#[auto_impl::auto_impl(&)]
 pub trait Costs {
     fn instruction(&self, instruction: &walrus::ir::Instr) -> i32;
 }
@@ -70,8 +80,11 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
     }
 }
 
+/// The type of errors raised by this crate.
 pub type Error = anyhow::Error;
 
+/// Injects the named spend function and instrument all functions to call it
+/// according to the given costs.
 pub fn instrument(
     module: &[u8],
     costs: impl Costs,
@@ -80,16 +93,10 @@ pub fn instrument(
     let mut module = walrus::Module::from_buffer(module)?;
     let spend_ty = module.types.add(&[walrus::ValType::I64], &[]);
     let (spend, _) = module.add_import_func(spend_module, spend_name, spend_ty);
+    let mut visitor = Instrument { costs, spend };
 
     for (_id, func) in module.funcs.iter_local_mut() {
-        walrus::ir::dfs_pre_order_mut(
-            &mut Instrument {
-                costs: &costs,
-                spend,
-            },
-            func,
-            func.entry_block(),
-        );
+        walrus::ir::dfs_pre_order_mut(&mut visitor, func, func.entry_block());
     }
 
     Ok(module.emit_wasm())
