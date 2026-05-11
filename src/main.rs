@@ -10,12 +10,8 @@ impl Rules for WasmtimeRules {
     fn instruction_cost(&self, instruction: &walrus::ir::Instr) -> i32 {
         use walrus::ir::Instr::*;
         match instruction {
-            // Nop?
-            Drop(_) | Block(_) | Loop(_) | Unreachable(_) | Return(_) | IfElse(_) | BrIf(_) | Call(_) => 0,
-            x => {
-                println!("counting instruction: {x:?}");
-                1
-            },
+            Drop(_) | Block(_) | Loop(_) | Unreachable(_) => 0,
+            _ => 1,
         }
     }
 }
@@ -46,21 +42,51 @@ struct Instrument<R> {
 
 impl<R: Rules> walrus::ir::VisitorMut for Instrument<R> {
     fn start_instr_seq_mut(&mut self, instr_seq: &mut walrus::ir::InstrSeq) {
-        let cost: i64 = instr_seq.instrs.iter().map(|(instr, _loc_id)| self.rules.instruction_cost(instr) as i64).sum();
-        instr_seq.instrs.insert(
-            0,
-            (
-                walrus::ir::Call { func: self.spend }.into(),
-                walrus::InstrLocId::default(),
-            ),
-        );
-        instr_seq.instrs.insert(
-            0,
-            (
-                walrus::ir::Const { value: walrus::ir::Value::I64(cost) }.into(),
-                walrus::InstrLocId::default(),
-            ),
-        );
+        fn is_control_flow(instr: &walrus::ir::Instr) -> bool {
+            // We consider blocks to be control-flow structures as they may
+            // contain control-flow structures. For efficiency, we could check
+            // whether the block contains a control-flow structure, but to do so
+            // we would need a reference to the containing `LocalFunction`,
+            // which we can't get as we're currently traversing it mutably.
+            use walrus::ir::Instr::*;
+            matches!(instr, Br(_) | BrIf(_) | BrTable(_) | Return(_) | Block(_) | Loop(_) | IfElse(_))
+        }
+
+        let mut insert_positions: Vec<(usize, i64)> = Vec::new();
+        let mut current_cost: i64 = 0;
+        let mut basic_block_start: usize = 0;
+
+        for (idx, (instr, _)) in instr_seq.instrs.iter().enumerate() {
+            current_cost += self.rules.instruction_cost(instr) as i64;
+
+            if is_control_flow(instr) {
+                insert_positions.push((basic_block_start, current_cost));
+                basic_block_start = idx + 1;
+                current_cost = 0;
+            }
+        }
+
+        if basic_block_start != instr_seq.instrs.len() {
+            insert_positions.push((basic_block_start, current_cost));
+        }
+
+        // Insert in reverse order to preserve indices
+        for (pos, cost) in insert_positions.into_iter().rev() {
+            instr_seq.instrs.insert(
+                pos,
+                (
+                    walrus::ir::Call { func: self.spend }.into(),
+                    walrus::InstrLocId::default(),
+                ),
+            );
+            instr_seq.instrs.insert(
+                pos,
+                (
+                    walrus::ir::Const { value: walrus::ir::Value::I64(cost) }.into(),
+                    walrus::InstrLocId::default(),
+                ),
+            );
+        }
     }
 }
 
@@ -69,8 +95,7 @@ fn instrument(module: &[u8]) -> anyhow::Result<Vec<u8>> {
     let spend_ty = module.types.add(&[walrus::ValType::I64], &[]);
     let (spend, _) = module.add_import_func("host", "spend", spend_ty);
 
-    for (id, func) in module.funcs.iter_local_mut() {
-        println!("{:?}", id);
+    for (_id, func) in module.funcs.iter_local_mut() {
         walrus::ir::dfs_pre_order_mut(
             &mut Instrument {
                 rules: WasmtimeRules,
@@ -104,7 +129,8 @@ fn main() -> anyhow::Result<()> {
     })?;
 
     let module = std::fs::read("target/wasm32-unknown-unknown/debug/examples/loop.wasm")?;
-    let count = 0;
+
+    let count = 5;
 
     let wasmtime_cost = {
         store.set_fuel(10_000)?;
