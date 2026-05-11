@@ -61,11 +61,13 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
     }
 }
 
+pub type Error = anyhow::Error;
+
 pub fn instrument(
     module: &[u8],
     costs: impl Costs,
     (spend_module, spend_name): (&str, &str),
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, Error> {
     let mut module = walrus::Module::from_buffer(module)?;
     let spend_ty = module.types.add(&[walrus::ValType::I64], &[]);
     let (spend, _) = module.add_import_func(spend_module, spend_name, spend_ty);

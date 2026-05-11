@@ -1229,16 +1229,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "walrus-instrument"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "auto_impl",
- "walrus",
- "wasmtime",
-]
-
-[[package]]
 name = "walrus-macro"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1248,6 +1238,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "walrus-metering"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "auto_impl",
+ "walrus",
+ "wasmtime",
 ]
 
 [[package]]

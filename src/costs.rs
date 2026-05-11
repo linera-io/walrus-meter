@@ -20,7 +20,7 @@ fn test_wasmtime_equivalence() -> anyhow::Result<()> {
         *caller.data_mut() += cost;
     })?;
 
-    let module = std::fs::read("target/wasm32-unknown-unknown/debug/examples/loop.wasm")?;
+    let module = std::fs::read("fixtures/loop.wasm")?;
 
     let count = 5;
 
