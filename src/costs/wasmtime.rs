@@ -10,12 +10,8 @@ as Wasmtime will charge for the implicit return at the end of a function,
 while this does not.
 </div>
 */
-
-// TODO: add an implicit_return cost to the `Costs` trait that can be used to
-// instrument the module to achieve Wasmtime equivalence.
-
 pub struct Costs;
-impl crate::Costs for Costs {
+impl super::Costs for Costs {
     fn instruction(&self, instruction: &walrus::ir::Instr) -> i32 {
         use walrus::ir::Instr::*;
         match instruction {

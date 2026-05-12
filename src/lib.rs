@@ -14,13 +14,11 @@ cost.
 
 pub mod costs;
 
+#[doc(inline)]
+pub use costs::Costs;
+
 /// The type of errors raised by this crate.
 pub type Error = anyhow::Error;
-
-/// A trait that encodes the costs of different Wasm operations.
-pub trait Costs {
-    fn instruction(&self, instruction: &walrus::ir::Instr) -> i32;
-}
 
 struct Instrument<C> {
     costs: C,
