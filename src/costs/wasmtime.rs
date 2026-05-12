@@ -24,8 +24,7 @@ impl super::Costs for Costs {
 #[cfg(test)]
 mod test {
     use wasm_instrument::parity_wasm;
-
-    static FIXTURES: &[(&str, &str)] = &[("loop", include_str!("fixtures/loop.wat"))];
+    use test_case::test_case;
 
     impl wasm_instrument::gas_metering::Rules for super::Costs {
         fn instruction_cost(
@@ -59,7 +58,12 @@ mod test {
         .into_bytes()?)
     }
 
-    fn assert_wasm_instrument_equivalent(name: &str, code: &str) -> wasmtime::Result<()> {
+    #[test_case(include_str!("fixtures/branch.wat"); "branch")]
+    #[test_case(include_str!("fixtures/call.wat"); "call")]
+    #[test_case(include_str!("fixtures/ifs.wat"); "ifs")]
+    #[test_case(include_str!("fixtures/loop.wat"); "loop_")]
+    #[test_case(include_str!("fixtures/simple.wat"); "simple")]
+    fn wasm_instrument_equivalent(code: &str) -> wasmtime::Result<()> {
         use wasmtime::ToWasmtimeResult as _;
 
         let engine = wasmtime::Engine::default();
@@ -103,19 +107,9 @@ mod test {
         assert_eq!(
             walrus_instrument_cost, parity_instrument_cost,
             "\n\
-             While testing fixture {name}:\n\
              \twalrus-meter cost:    {walrus_instrument_cost}\n\
              \twasm-instrument cost: {parity_instrument_cost}",
         );
-
-        Ok(())
-    }
-
-    #[test]
-    fn wasm_instrument_equivalence() -> anyhow::Result<()> {
-        for (name, fixture) in FIXTURES {
-            assert_wasm_instrument_equivalent(name, fixture)?;
-        }
 
         Ok(())
     }
