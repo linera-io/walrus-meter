@@ -5,6 +5,9 @@ edition = "2024"
 authors = ["Linera <contact@linera.io>"]
 license = "Apache-2.0"
 description = "Instrumentation-based gas metering built on `walrus`"
+homepage = "https://github.com/linera-io/walrus-meter"
+repository = "https://github.com/linera-io/walrus-meter"
+documentation = "https://docs.rs/walrus-meter/"
 
 [dependencies]
 anyhow = "1.0.102"
