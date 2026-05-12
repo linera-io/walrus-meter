@@ -14,6 +14,9 @@ cost.
 
 pub mod costs;
 
+/// The type of errors raised by this crate.
+pub type Error = anyhow::Error;
+
 /// A trait that encodes the costs of different Wasm operations.
 pub trait Costs {
     fn instruction(&self, instruction: &walrus::ir::Instr) -> i32;
@@ -79,9 +82,6 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
         }
     }
 }
-
-/// The type of errors raised by this crate.
-pub type Error = anyhow::Error;
 
 /// Injects the named spend function and instrument all functions to call it
 /// according to the given costs.
