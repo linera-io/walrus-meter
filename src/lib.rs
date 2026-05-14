@@ -60,6 +60,10 @@ impl<C: Costs> walrus::ir::VisitorMut for Instrument<C> {
 
         // Insert in reverse order to preserve indices
         for (pos, cost) in insert_positions.into_iter().rev() {
+            if cost == 0 {
+                continue;
+            }
+
             instr_seq.instrs.insert(
                 pos,
                 (

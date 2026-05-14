@@ -63,6 +63,7 @@ mod test {
     #[test_case(include_str!("fixtures/ifs.wat"); "ifs")]
     #[test_case(include_str!("fixtures/loop.wat"); "loop_")]
     #[test_case(include_str!("fixtures/simple.wat"); "simple")]
+    #[test_case(include_str!("fixtures/merge.wat"); "merge")]
     fn wasm_instrument_equivalent(code: &str) -> wasmtime::Result<()> {
         use wasmtime::ToWasmtimeResult as _;
 
