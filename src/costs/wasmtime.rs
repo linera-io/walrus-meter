@@ -23,8 +23,8 @@ impl super::Costs for Costs {
 
 #[cfg(test)]
 mod test {
-    use wasm_instrument::parity_wasm;
     use test_case::test_case;
+    use wasm_instrument::parity_wasm;
 
     impl wasm_instrument::gas_metering::Rules for super::Costs {
         fn instruction_cost(
@@ -64,6 +64,7 @@ mod test {
     #[test_case(include_str!("fixtures/loop.wat"); "loop_")]
     #[test_case(include_str!("fixtures/simple.wat"); "simple")]
     #[test_case(include_str!("fixtures/merge.wat"); "merge")]
+    #[test_case(include_str!("fixtures/nesting.wat"); "nesting")]
     fn wasm_instrument_equivalent(code: &str) -> wasmtime::Result<()> {
         use wasmtime::ToWasmtimeResult as _;
 
